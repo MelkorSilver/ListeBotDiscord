@@ -2,12 +2,14 @@ import os
 import discord
 from discord.ext import commands
 from dotenv import load_dotenv
+import re
 
 load_dotenv()
 
 TOKEN = os.getenv("TOKEN")
-LIST_CHANNEL_ID = os.getenv("LIST_CHANNEL_ID")
-LIST_MESSAGE_ID = os.getenv("LIST_MESSAGE_ID")
+
+LIST_CHANNEL_ID = None
+LIST_MESSAGE_ID = None
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -19,19 +21,16 @@ async def on_ready():
     print(f"Bot giriş yaptı: {bot.user}")
 
 @bot.command()
-async def liste_ayarla(ctx):
-    """Liste mesajını ayarlar (mesaja reply olarak kullanılacak)."""
+async def liste_olustur(ctx, *, liste):
+    """Botun düzenleyebileceği liste oluşturur."""
     global LIST_CHANNEL_ID, LIST_MESSAGE_ID
 
-    if not ctx.message.reference:
-        return await ctx.reply("Bu komutu **liste mesajına cevap atarak** kullanmalısın.")
+    msg = await ctx.send(liste)
 
-    LIST_CHANNEL_ID = str(ctx.channel.id)
-    LIST_MESSAGE_ID = str(ctx.message.reference.message_id)
+    LIST_CHANNEL_ID = msg.channel.id
+    LIST_MESSAGE_ID = msg.id
 
-    print("Kayıt yapıldı:", LIST_CHANNEL_ID, LIST_MESSAGE_ID)
-
-    await ctx.reply("✅ Liste mesajı kaydedildi!")
+    await ctx.reply("✅ Liste oluşturuldu! Artık kullanıcılar sayı yazabilir.")
 
 @bot.event
 async def on_message(message):
@@ -42,36 +41,40 @@ async def on_message(message):
 
     global LIST_CHANNEL_ID, LIST_MESSAGE_ID
 
-    # sadece sayı yazılmış mı?
-    if message.content.isdigit():
-        if not LIST_CHANNEL_ID or not LIST_MESSAGE_ID:
-            return
+    # Liste yoksa işlem yok
+    if LIST_CHANNEL_ID is None or LIST_MESSAGE_ID is None:
+        return
 
-        num = int(message.content)
+    # sayı mı?
+    if not message.content.isdigit():
+        return
 
-        channel = bot.get_channel(int(LIST_CHANNEL_ID))
-        if not channel:
-            return
+    num = int(message.content)
 
-        try:
-            list_msg = await channel.fetch_message(int(LIST_MESSAGE_ID))
-        except:
-            return
+    channel = bot.get_channel(LIST_CHANNEL_ID)
+    if not channel:
+        return
 
-        lines = list_msg.content.split("\n")
+    try:
+        list_msg = await channel.fetch_message(LIST_MESSAGE_ID)
+    except:
+        return
 
-        idx = next((i for i, l in enumerate(lines) if l.strip().startswith(f"{num})")), None)
+    lines = list_msg.content.split("\n")
 
-        if idx is None:
-            return
+    # doğru satırı bul
+    idx = next((i for i, l in enumerate(lines) if l.strip().startswith(f"{num})")), None)
 
-        # Eski mention temizle
-        import re
-        lines[idx] = re.sub(r"–\s*<@!?\d+>", "", lines[idx]).strip()
+    if idx is None:
+        return
 
-        # Yeni mention ekle
-        lines[idx] = f"{lines[idx]} – <@{message.author.id}>"
+    # eski mention sil
+    lines[idx] = re.sub(r"–\s*<@!?\d+>", "", lines[idx]).strip()
 
-        await list_msg.edit(content="\n".join(lines))
+    # yeni mention ekle
+    lines[idx] = f"{lines[idx]} – <@{message.author.id}>"
+
+    # botun kendi mesajı → edit edilebilir
+    await list_msg.edit(content="\n".join(lines))
 
 bot.run(TOKEN)
