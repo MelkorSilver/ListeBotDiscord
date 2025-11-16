@@ -9,7 +9,7 @@ load_dotenv()
 TOKEN = os.getenv("TOKEN")
 
 # Railway → Variables → MAIN_ADMIN_ROLE_ID
-MAIN_ADMIN_ROLE_ID = int(os.getenv("MAIN_ADMIN_ROLE_ID", "0"))
+MAIN_ADMIN_ROLE_ID = 0  # admin kontrolünü şimdilik devre dışı orjinal = int(os.getenv("MAIN_ADMIN_ROLE_ID", "0"))
 EXTRA_ADMIN_ROLE_ID = None
 
 LIST_CHANNEL_ID = None
@@ -230,3 +230,4 @@ async def on_message(message):
 
         if info_start:
             info_li_
+
