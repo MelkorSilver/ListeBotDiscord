@@ -4,16 +4,20 @@ from discord.ext import commands
 from dotenv import load_dotenv
 import re
 
-# ENV yükle
+# Load .env
 load_dotenv()
+
 TOKEN = os.getenv("TOKEN")
 
+# Railway → Variables → MAIN_ADMIN_ROLE_ID (zorunlu)
 MAIN_ADMIN_ROLE_ID = int(os.getenv("MAIN_ADMIN_ROLE_ID", "0"))
+
+# Sonradan !adminekle ile ayarlanacak
 EXTRA_ADMIN_ROLE_ID = None
 
 LIST_CHANNEL_ID = None
 LIST_MESSAGE_ID = None
-LIST_TEXT_LINES = []  # liste satırları
+LIST_DATA = {}  # embed içeriği için
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -23,179 +27,205 @@ intents.members = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 
-# -------------------------
-# Admin kontrol
-# -------------------------
+# -----------------------
+# ADMIN KONTROL FONKSİYONU
+# -----------------------
 def is_admin(user):
-    role_ids = [r.id for r in getattr(user, "roles", [])]
-    return (
-        MAIN_ADMIN_ROLE_ID in role_ids or
-        (EXTRA_ADMIN_ROLE_ID and EXTRA_ADMIN_ROLE_ID in role_ids)
-    )
+    global MAIN_ADMIN_ROLE_ID, EXTRA_ADMIN_ROLE_ID
+    if not hasattr(user, "roles"):
+        return False
+
+    role_ids = [r.id for r in user.roles]
+
+    if MAIN_ADMIN_ROLE_ID in role_ids:
+        return True
+
+    if EXTRA_ADMIN_ROLE_ID and EXTRA_ADMIN_ROLE_ID in role_ids:
+        return True
+
+    return False
 
 
-# -------------------------
-# Embed oluşturucu
-# -------------------------
-def build_embed():
-    list_part = "\n".join(LIST_TEXT_LINES)
-
-    footer = (
-        "──────────────────────────────\n"
-        "🔢 Sıraya girmek için sayı yazın\n"
-        "🧽 Kendini silmek için: !benisil\n"
-        "📘 Tüm komutlar: !yardım\n"
-        "──────────────────────────────"
-    )
-
-    return discord.Embed(
-        title="📋 Liste",
-        description=f"{list_part}\n\n{footer}",
-        color=0x3498db
-    )
-
-
+# -----------------------
+# BOT BAŞLANGICI
+# -----------------------
 @bot.event
 async def on_ready():
     print(f"Bot giriş yaptı: {bot.user}")
 
 
-# -------------------------
-# !listeolustur
-# -------------------------
+# -----------------------
+# YARDIM KOMUTU
+# -----------------------
+@bot.command()
+async def yardım(ctx):
+    embed = discord.Embed(
+        title="📌 Komut Listesi",
+        description="Botun tüm komutları aşağıdadır:",
+        color=0x4CAF50
+    )
+
+    embed.add_field(name="!listeolustur metin", value="Yeni bir liste oluşturur.", inline=False)
+    embed.add_field(name="!listegoster", value="Mevcut listeyi embed olarak gösterir.", inline=False)
+    embed.add_field(name="!listesifirla", value="Listeyi tamamen sıfırlar. (Sadece admin)", inline=False)
+    embed.add_field(name="!benisil", value="Kendi isminizi listeden siler.", inline=False)
+    embed.add_field(name="!adminekle @rol", value="Ek bir admin rolü ekler. (Sadece ana admin)", inline=False)
+    embed.add_field(name="Sayınızı yazın", value="Sayı yazan kişinin ismi ilgili satıra işlenir.", inline=False)
+
+    embed.set_footer(text="Liste Bot • Developed by ChatGPT")
+
+    await ctx.send(embed=embed)
+
+
+# -----------------------
+# LİSTE OLUŞTURMA
+# -----------------------
 @bot.command()
 async def listeolustur(ctx, *, liste):
-    """
-    Kullanıcı şu şekilde tek mesaj atar:
-    !listeolustur
-    1) Tank
-    2) Healer
-    3) DPS
-    """
-    global LIST_CHANNEL_ID, LIST_MESSAGE_ID, LIST_TEXT_LINES
+    """Listeyi embed olarak oluşturur ve işlenebilir hale getirir."""
+    global LIST_CHANNEL_ID, LIST_MESSAGE_ID, LIST_DATA
 
-    # Komut mesajından sadece liste kısmını çek
+    LIST_DATA = {}
     lines = liste.split("\n")
-    LIST_TEXT_LINES = []
+
+    embed = discord.Embed(title="📋 Liste", color=0x3498db)
 
     for line in lines:
-        line = line.strip()
         if ")" in line:
-            LIST_TEXT_LINES.append(line)
+            num = line.split(")")[0].strip()
+            LIST_DATA[int(num)] = line
 
-    embed = build_embed()
-    msg = await ctx.send(embed=embed)
+    text = "\n".join(lines)
+    msg = await ctx.send(embed=discord.Embed(title="📋 Liste", description=text, color=0x3498db))
 
     LIST_CHANNEL_ID = msg.channel.id
     LIST_MESSAGE_ID = msg.id
 
-    await ctx.reply("✅ Liste oluşturuldu!")
+    await ctx.reply("✅ Liste oluşturuldu! Kullanıcılar sayı yazabilir.")
 
 
-# -------------------------
-# listegoster
-# -------------------------
+# -----------------------
+# LİSTE GÖSTER
+# -----------------------
 @bot.command()
 async def listegoster(ctx):
     if LIST_MESSAGE_ID is None:
-        return await ctx.reply("❌ Liste yok.")
+        return await ctx.reply("❌ Henüz bir liste oluşturulmadı.")
 
     channel = bot.get_channel(LIST_CHANNEL_ID)
     msg = await channel.fetch_message(LIST_MESSAGE_ID)
 
-    await ctx.send(embed=msg.embeds[0])
+    embed = discord.Embed(title="📋 Mevcut Liste", description=msg.embeds[0].description, color=0x3498db)
+    await ctx.send(embed=embed)
 
 
-# -------------------------
-# listesifirla
-# -------------------------
+# -----------------------
+# LİSTE SIFIRLA
+# -----------------------
 @bot.command()
 async def listesifirla(ctx):
-    global LIST_CHANNEL_ID, LIST_MESSAGE_ID, LIST_TEXT_LINES
+    global LIST_CHANNEL_ID, LIST_MESSAGE_ID, LIST_DATA
 
     if not is_admin(ctx.author):
-        return await ctx.reply("❌ Bu komut sadece admin içindir.")
+        return await ctx.reply("❌ Bu komutu sadece adminler kullanabilir.")
 
     LIST_CHANNEL_ID = None
     LIST_MESSAGE_ID = None
-    LIST_TEXT_LINES = []
+    LIST_DATA = {}
 
     await ctx.reply("🗑️ Liste sıfırlandı!")
 
 
-# -------------------------
-# benisil
-# -------------------------
+# -----------------------
+# KENDİ MENTION SİLME
+# -----------------------
 @bot.command()
 async def benisil(ctx):
-    global LIST_TEXT_LINES
+    """Kullanıcı kendi adını listeden sildirebilir."""
+    global LIST_CHANNEL_ID, LIST_MESSAGE_ID
 
     if LIST_MESSAGE_ID is None:
         return await ctx.reply("❌ Liste yok.")
 
-    user_tag = f"<@{ctx.author.id}>"
-    new_lines = []
-
-    for line in LIST_TEXT_LINES:
-        if user_tag in line:
-            line = re.sub(r"–\s*<@!?\d+>", "", line).strip()
-        new_lines.append(line)
-
-    LIST_TEXT_LINES = new_lines
-
     channel = bot.get_channel(LIST_CHANNEL_ID)
     msg = await channel.fetch_message(LIST_MESSAGE_ID)
-    await msg.edit(embed=build_embed())
 
+    lines = msg.embeds[0].description.split("\n")
+
+    user_tag = f"<@{ctx.author.id}>"
+
+    new_lines = [re.sub(r"–\s*<@!?\d+>", "", line) if user_tag in line else line for line in lines]
+
+    new_text = "\n".join(new_lines)
+    new_embed = discord.Embed(title="📋 Liste", description=new_text, color=0x3498db)
+
+    await msg.edit(embed=new_embed)
     await ctx.reply("🧹 İsmin listeden silindi!")
 
 
-# -------------------------
-# adminekle
-# -------------------------
+# -----------------------
+# ADMİN EKLEME
+# -----------------------
 @bot.command()
 async def adminekle(ctx, rol: discord.Role):
     global EXTRA_ADMIN_ROLE_ID
 
+    # sadece MAIN_ADMIN_ROLE_ID kullanabilir
     if MAIN_ADMIN_ROLE_ID not in [r.id for r in ctx.author.roles]:
-        return await ctx.reply("❌ Bu komut ana admin içindir.")
+        return await ctx.reply("❌ Bu komutu sadece ana admin kullanabilir.")
 
     EXTRA_ADMIN_ROLE_ID = rol.id
-    await ctx.reply(f"🔐 `{rol.name}` artık admin rolüdür.")
+    await ctx.reply(f"🔐 `{rol.name}` artık admin rolü olarak ayarlandı!")
 
 
-# -------------------------
-# sayı yazınca işlem
-# -------------------------
+# -----------------------
+# SAYI YAZAN İŞLENİR
+# -----------------------
 @bot.event
 async def on_message(message):
-    global LIST_TEXT_LINES, LIST_MESSAGE_ID, LIST_CHANNEL_ID
+    global LIST_CHANNEL_ID, LIST_MESSAGE_ID
 
     if message.author.bot:
         return
 
     await bot.process_commands(message)
 
-    if LIST_MESSAGE_ID is None:
+    # Sayı değilse devam etmesin
+    if not message.content.isdigit():
         return
 
-    if not message.content.isdigit():
+    if LIST_MESSAGE_ID is None:
         return
 
     num = int(message.content)
 
-    for i, line in enumerate(LIST_TEXT_LINES):
-        if line.startswith(f"{num})"):
+    channel = bot.get_channel(LIST_CHANNEL_ID)
+    msg = await channel.fetch_message(LIST_MESSAGE_ID)
 
-            # mention sil
-            LIST_TEXT_LINES[i] = re.sub(r"–\s*<@!?\d+>", "", LIST_TEXT_LINES[i]).strip()
-            # yeni mention
-            LIST_TEXT_LINES[i] += f" – <@{message.author.id}>"
+    lines = msg.embeds[0].description.split("\n")
 
-            channel = bot.get_channel(LIST_CHANNEL_ID)
-            msg = await channel.fetch_message(LIST_MESSAGE_ID)
-            await msg.edit(embed=build_embed())
+    idx = None
+    for i, line in enumerate(lines):
+        if line.strip().startswith(f"{num})"):
+            idx = i
             break
 
+    if idx is None:
+        return
 
+    # eski mention kaldır
+    lines[idx] = re.sub(r"–\s*<@!?\d+>", "", lines[idx]).strip()
+
+    # yeni mention ekle
+    lines[idx] = f"{lines[idx]} – <@{message.author.id}>"
+
+    new_text = "\n".join(lines)
+    new_embed = discord.Embed(title="📋 Liste", description=new_text, color=0x3498db)
+
+    await msg.edit(embed=new_embed)
+
+
+# -----------------------
+# BOTU ÇALIŞTIR
+# -----------------------
 bot.run(TOKEN)
