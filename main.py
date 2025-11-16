@@ -20,9 +20,12 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 async def on_ready():
     print(f"Bot giriş yaptı: {bot.user}")
 
+
+# -----------------------------
+#  KOMUT: LİSTE OLUŞTUR
+# -----------------------------
 @bot.command()
 async def liste_olustur(ctx, *, liste):
-    """Botun düzenleyebileceği liste oluşturur."""
     global LIST_CHANNEL_ID, LIST_MESSAGE_ID
 
     msg = await ctx.send(liste)
@@ -32,20 +35,24 @@ async def liste_olustur(ctx, *, liste):
 
     await ctx.reply("✅ Liste oluşturuldu! Artık kullanıcılar sayı yazabilir.")
 
+
+# -----------------------------
+#  MESAJ EVENTİ (sayı kontrolü)
+# -----------------------------
 @bot.event
 async def on_message(message):
     if message.author.bot:
         return
 
+    # BUNUN MUTLAKA EN ÜSTE YAKIN OLMASI GEREKİYOR
     await bot.process_commands(message)
 
     global LIST_CHANNEL_ID, LIST_MESSAGE_ID
 
-    # Liste yoksa işlem yok
     if LIST_CHANNEL_ID is None or LIST_MESSAGE_ID is None:
         return
 
-    # sayı mı?
+    # sadece sayı yazıldıysa devam et
     if not message.content.isdigit():
         return
 
@@ -62,7 +69,7 @@ async def on_message(message):
 
     lines = list_msg.content.split("\n")
 
-    # doğru satırı bul
+    # DOĞRU PARANTEZ DÜZELTİLDİ
     idx = next((i for i, l in enumerate(lines) if l.strip().startswith(f"{num})")), None)
 
     if idx is None:
@@ -74,7 +81,8 @@ async def on_message(message):
     # yeni mention ekle
     lines[idx] = f"{lines[idx]} – <@{message.author.id}>"
 
-    # botun kendi mesajı → edit edilebilir
+    # bot mesajı → düzenleyebilir
     await list_msg.edit(content="\n".join(lines))
+
 
 bot.run(TOKEN)
