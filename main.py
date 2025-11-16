@@ -218,10 +218,12 @@ async def on_message(message):
         else:
             list_lines.append(line)
 
-    # İlgili satırı bul
+    # İlgili satırı bul (1, 1), 1-, 1. hepsi çalışsın)
     idx = None
+    pattern = re.compile(rf"^{num}\b")  # satır başı: "1", "1)", "1-", "1." vb
+
     for i, line in enumerate(list_lines):
-        if line.strip().startswith(f"{num})"):
+        if pattern.match(line.strip()):
             idx = i
             break
 
