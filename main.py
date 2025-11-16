@@ -8,10 +8,10 @@ import re
 load_dotenv()
 TOKEN = os.getenv("TOKEN")
 
-# Railway → Variables → MAIN_ADMIN_ROLE_ID
-MAIN_ADMIN_ROLE_ID = 0  # admin kontrolünü şimdilik devre dışı orjinal = int(os.getenv("MAIN_ADMIN_ROLE_ID", "0"))
+# Ek admin rol ID'si (!adminekle ile ayarlanacak)
 EXTRA_ADMIN_ROLE_ID = None
 
+# Aktif liste mesajı
 LIST_CHANNEL_ID = None
 LIST_MESSAGE_ID = None
 
@@ -26,18 +26,18 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 # ----------------------------
 # Admin kontrol fonksiyonu
 # ----------------------------
-def is_admin(user):
-    global MAIN_ADMIN_ROLE_ID, EXTRA_ADMIN_ROLE_ID
+def is_admin(member: discord.Member) -> bool:
+    global EXTRA_ADMIN_ROLE_ID
 
-    if not hasattr(user, "roles"):
+    if not isinstance(member, discord.Member):
         return False
 
-    role_ids = [r.id for r in user.roles]
-
-    if MAIN_ADMIN_ROLE_ID in role_ids:
+    # Sunucuda "Yönetici" izni varsa admin kabul et
+    if member.guild_permissions.administrator:
         return True
 
-    if EXTRA_ADMIN_ROLE_ID and EXTRA_ADMIN_ROLE_ID in role_ids:
+    # Ek admin rolü tanımlıysa ve kullanıcıda varsa
+    if EXTRA_ADMIN_ROLE_ID and any(r.id == EXTRA_ADMIN_ROLE_ID for r in member.roles):
         return True
 
     return False
@@ -59,10 +59,10 @@ async def yardım(ctx):
         color=0x4CAF50
     )
     embed.add_field(name="!listeolustur metin", value="Yeni liste oluşturur.", inline=False)
-    embed.add_field(name="!listegoster", value="Mevcut listeyi gösterir.", inline=False)
-    embed.add_field(name="!listesifirla", value="Listeyi sıfırlar (Admin).", inline=False)
+    embed.add_field(name="!listegoster", value="Mevcut listeyi tekrar gönderir.", inline=False)
+    embed.add_field(name="!listesifirla", value="Aktif listeyi sıfırlar (Admin).", inline=False)
     embed.add_field(name="!benisil", value="Kendi ismini listeden siler.", inline=False)
-    embed.add_field(name="!adminekle @rol", value="Ek admin tanımlar (Ana admin).", inline=False)
+    embed.add_field(name="!adminekle @rol", value="Ek admin rolü tanımlar (Sunucu yöneticisi).", inline=False)
     embed.add_field(name="Sayı yaz", value="Sayı yazınca ismini ilgili satıra ekler.", inline=False)
 
     await ctx.send(embed=embed)
@@ -73,6 +73,7 @@ async def yardım(ctx):
 # ----------------------------
 @bot.command()
 async def listeolustur(ctx, *, liste):
+    """Metinden liste oluşturur, komut mesajını siler, thread açar."""
     global LIST_CHANNEL_ID, LIST_MESSAGE_ID
 
     lines = liste.split("\n")
@@ -103,7 +104,10 @@ async def listeolustur(ctx, *, liste):
     # Otomatik thread aç
     try:
         thread_name = f"Liste – {ctx.author.display_name}"
-        await msg.create_thread(name=thread_name, auto_archive_duration=1440)  # 24 saat
+        await msg.create_thread(
+            name=thread_name,
+            auto_archive_duration=1440  # 24 saat
+        )
     except Exception as e:
         print(f"Thread oluşturulamadı: {e}")
 
@@ -126,7 +130,16 @@ async def listegoster(ctx):
         return await ctx.reply("❌ Henüz liste oluşturulmamış.")
 
     channel = bot.get_channel(LIST_CHANNEL_ID)
-    msg = await channel.fetch_message(LIST_MESSAGE_ID)
+    if not channel:
+        return await ctx.reply("❌ Liste kanalı bulunamadı.")
+
+    try:
+        msg = await channel.fetch_message(LIST_MESSAGE_ID)
+    except discord.NotFound:
+        return await ctx.reply("❌ Liste mesajı bulunamadı.")
+    except Exception as e:
+        print(e)
+        return await ctx.reply("❌ Liste mesajına erişilemiyor.")
 
     await ctx.send(embed=msg.embeds[0])
 
@@ -152,13 +165,22 @@ async def listesifirla(ctx):
 # ----------------------------
 @bot.command()
 async def benisil(ctx):
-    global LIST_MESSAGE_ID
+    global LIST_MESSAGE_ID, LIST_CHANNEL_ID
 
     if LIST_MESSAGE_ID is None:
         return await ctx.reply("❌ Liste yok.")
 
     channel = bot.get_channel(LIST_CHANNEL_ID)
-    msg = await channel.fetch_message(LIST_MESSAGE_ID)
+    if not channel:
+        return await ctx.reply("❌ Liste kanalı bulunamadı.")
+
+    try:
+        msg = await channel.fetch_message(LIST_MESSAGE_ID)
+    except discord.NotFound:
+        return await ctx.reply("❌ Liste mesajı bulunamadı.")
+    except Exception as e:
+        print(e)
+        return await ctx.reply("❌ Liste mesajına erişilemiyor.")
 
     lines = msg.embeds[0].description.split("\n")
     user_tag = f"<@{ctx.author.id}>"
@@ -187,11 +209,12 @@ async def benisil(ctx):
 async def adminekle(ctx, rol: discord.Role):
     global EXTRA_ADMIN_ROLE_ID
 
-    if MAIN_ADMIN_ROLE_ID not in [r.id for r in ctx.author.roles]:
-        return await ctx.reply("❌ Bu komutu sadece ana admin kullanabilir.")
+    # Sadece sunucu yöneticisi ek admin rolü atayabilsin
+    if not ctx.author.guild_permissions.administrator:
+        return await ctx.reply("❌ Bu komutu sadece sunucu yöneticileri kullanabilir.")
 
     EXTRA_ADMIN_ROLE_ID = rol.id
-    await ctx.reply(f"🔐 `{rol.name}` artık admin rolü olarak ayarlandı!")
+    await ctx.reply(f"🔐 `{rol.name}` artık ek admin rolü olarak ayarlandı!")
 
 
 # ----------------------------
@@ -204,8 +227,10 @@ async def on_message(message):
     if message.author.bot:
         return
 
+    # Önce komutları çalıştır
     await bot.process_commands(message)
 
+    # Sonrası sadece düz sayı mesajları için
     if LIST_MESSAGE_ID is None:
         return
 
@@ -215,7 +240,16 @@ async def on_message(message):
     num = int(message.content)
 
     channel = bot.get_channel(LIST_CHANNEL_ID)
-    msg = await channel.fetch_message(LIST_MESSAGE_ID)
+    if not channel:
+        return
+
+    try:
+        msg = await channel.fetch_message(LIST_MESSAGE_ID)
+    except Exception:
+        return
+
+    if not msg.embeds:
+        return
 
     lines = msg.embeds[0].description.split("\n")
 
@@ -229,5 +263,51 @@ async def on_message(message):
             info_start = True
 
         if info_start:
-            info_li_
+            info_lines.append(line)
+        else:
+            list_lines.append(line)
 
+    # Kullanıcının zaten listede bir yeri var mı?
+    user_tag = f"<@{message.author.id}>"
+    for line in list_lines:
+        if user_tag in line:
+            await message.reply("❌ Zaten listede bir sıran var. Önce `!benisil` yazıp temizle, sonra yeni numara al.")
+            return
+
+    # İlgili satırı bul (1, 1), 1-, 1. vs hepsi çalışsın)
+    idx = None
+    pattern = re.compile(rf"^{num}\b")  # satır başı: "1", "1)", "1-", "1." vb
+
+    for i, line in enumerate(list_lines):
+        if pattern.match(line.strip()):
+            idx = i
+            break
+
+    if idx is None:
+        return
+
+    # SLOT DOLU MU? (herhangi bir mention varsa)
+    if re.search(r"<@!?\d+>", list_lines[idx]):
+        await message.reply("❌ Bu numara zaten dolu, başka bir numara seç.")
+        return
+
+    # Eski mention kalıntısı varsa temizle ve yeni mention ekle
+    list_lines[idx] = re.sub(r"–\s*<@!?\d+>", "", list_lines[idx]).strip()
+    list_lines[idx] = f"{list_lines[idx]} – <@{message.author.id}>"
+
+    # Embed yeniden oluştur
+    final_text = "\n".join(list_lines) + "\n" + "\n".join(info_lines)
+
+    new_embed = discord.Embed(
+        title="📋 Liste",
+        description=final_text,
+        color=0x3498db
+    )
+
+    await msg.edit(embed=new_embed)
+
+
+# ----------------------------
+# BOTU BAŞLAT
+# ----------------------------
+bot.run(TOKEN)
