@@ -66,6 +66,7 @@ async def yardım(ctx):
     embed.add_field(name="!listesıfırla", value="Listeyi sıfırlar (Admin).", inline=False)
     embed.add_field(name="!benisil", value="Kendi ismini listeden siler.", inline=False)
     embed.add_field(name="!adminekle @rol", value="Ek admin rolü tanımlar (Sadece ana admin).", inline=False)
+    embed.add_field(name="!clear [sayı]", value="Kanaldaki mesajları siler (sadece admin).", inline=False)
     embed.add_field(name="Sayı yaz", value="Sayı yazınca ismini ilgili satıra ekler.", inline=False)
 
     await ctx.send(embed=embed)
@@ -222,6 +223,33 @@ async def adminekle(ctx, rol: discord.Role):
 
     EXTRA_ADMIN_ROLE_ID = rol.id
     await ctx.reply(f"🔐 `{rol.name}` artık admin rolü olarak ayarlandı!")
+
+
+# ----------------------------
+# CLEAR KOMUTU -> !clear [sayı]
+# ----------------------------
+@bot.command()
+async def clear(ctx, miktar: int = 0):
+    """
+    !clear       => kanaldaki (son 14 gün içindeki) tüm mesajları siler (pinned hariç)
+    !clear 50    => son 50 mesajı siler (pinned hariç)
+    """
+    if not is_admin(ctx.author):
+        return await ctx.reply("❌ Bu komutu sadece adminler kullanabilir.")
+
+    def not_pinned(m: discord.Message):
+        return not m.pinned
+
+    if miktar > 0:
+        deleted = await ctx.channel.purge(limit=miktar + 1, check=not_pinned)
+        # Komut mesajı da arada silinir, o yüzden -1
+        silinen = max(len(deleted) - 1, 0)
+        await ctx.send(f"🧹 {silinen} mesaj silindi.", delete_after=5)
+    else:
+        # limit verilmezse: kanalın silinebilir tüm mesajlarını temizlemeye çalış
+        deleted = await ctx.channel.purge(check=not_pinned)
+        silinen = max(len(deleted) - 1, 0)
+        await ctx.send(f"🧹 Kanaldan yaklaşık {silinen} mesaj silindi. (14 günden eski mesajlar silinmez.)", delete_after=7)
 
 
 # ----------------------------
