@@ -34,9 +34,11 @@ def is_admin(user):
 
     role_ids = [r.id for r in user.roles]
 
+    # Ana admin rolü
     if MAIN_ADMIN_ROLE_ID in role_ids:
         return True
 
+    # Ek admin rolü
     if EXTRA_ADMIN_ROLE_ID and EXTRA_ADMIN_ROLE_ID in role_ids:
         return True
 
@@ -73,6 +75,14 @@ async def yardım(ctx):
 # ----------------------------
 @bot.command()
 async def listeolustur(ctx, *, liste):
+    """
+    Metinden liste oluşturur, thread açar, komut mesajını siler.
+    Örnek:
+    !listeolustur
+    1) Tank
+    2) Healer
+    3) DPS
+    """
     global LIST_CHANNEL_ID, LIST_MESSAGE_ID
 
     lines = liste.split("\n")
@@ -94,12 +104,30 @@ async def listeolustur(ctx, *, liste):
         color=0x3498db
     )
 
+    # Liste mesajını gönder
     msg = await ctx.send(embed=embed)
 
     LIST_CHANNEL_ID = msg.channel.id
     LIST_MESSAGE_ID = msg.id
 
-    await ctx.reply("✅ Liste oluşturuldu! Kullanıcılar sayı yazabilir.")
+    # Otomatik thread aç
+    try:
+        thread_name = f"Liste – {ctx.author.display_name}"
+        await msg.create_thread(
+            name=thread_name,
+            auto_archive_duration=1440  # 24 saat
+        )
+    except Exception as e:
+        print(f"Thread oluşturulamadı: {e}")
+
+    # Kullanıcıya bilgi mesajı
+    await ctx.reply("✅ Liste oluşturuldu! Kullanıcılar sayı yazabilir.", mention_author=False)
+
+    # Komut mesajını sil
+    try:
+        await ctx.message.delete()
+    except Exception as e:
+        print(f"Komut mesajı silinemedi: {e}")
 
 
 # ----------------------------
@@ -111,7 +139,16 @@ async def listegoster(ctx):
         return await ctx.reply("❌ Henüz liste oluşturulmamış.")
 
     channel = bot.get_channel(LIST_CHANNEL_ID)
-    msg = await channel.fetch_message(LIST_MESSAGE_ID)
+    if not channel:
+        return await ctx.reply("❌ Liste kanalı bulunamadı.")
+
+    try:
+        msg = await channel.fetch_message(LIST_MESSAGE_ID)
+    except discord.NotFound:
+        return await ctx.reply("❌ Liste mesajı bulunamadı.")
+    except Exception as e:
+        print(e)
+        return await ctx.reply("❌ Liste mesajına erişilemiyor.")
 
     await ctx.send(embed=msg.embeds[0])
 
@@ -137,13 +174,22 @@ async def listesifirla(ctx):
 # ----------------------------
 @bot.command()
 async def benisil(ctx):
-    global LIST_MESSAGE_ID
+    global LIST_MESSAGE_ID, LIST_CHANNEL_ID
 
     if LIST_MESSAGE_ID is None:
         return await ctx.reply("❌ Liste yok.")
 
     channel = bot.get_channel(LIST_CHANNEL_ID)
-    msg = await channel.fetch_message(LIST_MESSAGE_ID)
+    if not channel:
+        return await ctx.reply("❌ Liste kanalı bulunamadı.")
+
+    try:
+        msg = await channel.fetch_message(LIST_MESSAGE_ID)
+    except discord.NotFound:
+        return await ctx.reply("❌ Liste mesajı bulunamadı.")
+    except Exception as e:
+        print(e)
+        return await ctx.reply("❌ Liste mesajına erişilemiyor.")
 
     lines = msg.embeds[0].description.split("\n")
     user_tag = f"<@{ctx.author.id}>"
@@ -172,6 +218,7 @@ async def benisil(ctx):
 async def adminekle(ctx, rol: discord.Role):
     global EXTRA_ADMIN_ROLE_ID
 
+    # Sadece MAIN_ADMIN_ROLE_ID rolüne sahip olan kullanabilsin
     if MAIN_ADMIN_ROLE_ID not in [r.id for r in ctx.author.roles]:
         return await ctx.reply("❌ Bu komutu sadece ana admin kullanabilir.")
 
@@ -189,8 +236,10 @@ async def on_message(message):
     if message.author.bot:
         return
 
+    # Önce komutları çalıştır
     await bot.process_commands(message)
 
+    # Sonrası sadece düz sayı mesajları için
     if LIST_MESSAGE_ID is None:
         return
 
@@ -200,7 +249,16 @@ async def on_message(message):
     num = int(message.content)
 
     channel = bot.get_channel(LIST_CHANNEL_ID)
-    msg = await channel.fetch_message(LIST_MESSAGE_ID)
+    if not channel:
+        return
+
+    try:
+        msg = await channel.fetch_message(LIST_MESSAGE_ID)
+    except Exception:
+        return
+
+    if not msg.embeds:
+        return
 
     lines = msg.embeds[0].description.split("\n")
 
