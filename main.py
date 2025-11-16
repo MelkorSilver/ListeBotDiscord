@@ -218,6 +218,13 @@ async def on_message(message):
         else:
             list_lines.append(line)
 
+    # Kullanıcının zaten listede bir yeri var mı?
+    user_tag = f"<@{message.author.id}>"
+    for line in list_lines:
+        if user_tag in line:
+            await message.reply("❌ Zaten listede bir sıran var. Önce `!benisil` yazıp temizle, sonra yeni numara al.")
+            return
+
     # İlgili satırı bul (1, 1), 1-, 1. hepsi çalışsın)
     idx = None
     pattern = re.compile(rf"^{num}\b")  # satır başı: "1", "1)", "1-", "1." vb
@@ -235,7 +242,7 @@ async def on_message(message):
         await message.reply("❌ Bu numara zaten dolu, başka bir numara seç.")
         return
 
-    # Eski mention yoksa bile, güvenlik için temizleyip ekliyoruz
+    # Güvenlik amaçlı, eski mention kalıntısı varsa temizle
     list_lines[idx] = re.sub(r"–\s*<@!?\d+>", "", list_lines[idx]).strip()
     list_lines[idx] = f"{list_lines[idx]} – <@{message.author.id}>"
 
