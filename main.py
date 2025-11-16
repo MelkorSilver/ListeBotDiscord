@@ -8,10 +8,13 @@ import re
 load_dotenv()
 TOKEN = os.getenv("TOKEN")
 
-# Railway → Variables → MAIN_ADMIN_ROLE_ID
-MAIN_ADMIN_ROLE_ID = 0
+# Railway → Variables → MAIN_ADMIN_USER_ID (ana admin KULLANICI ID'si)
+MAIN_ADMIN_USER_ID = int(os.getenv("MAIN_ADMIN_USER_ID", "0"))
+
+# Ek admin rolü (adminekle ile atanacak)
 EXTRA_ADMIN_ROLE_ID = None
 
+# Aktif liste mesajı bilgileri
 LIST_CHANNEL_ID = None
 LIST_MESSAGE_ID = None
 
@@ -26,20 +29,18 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 # ----------------------------
 # Admin kontrol fonksiyonu
 # ----------------------------
-def is_admin(user):
-    global MAIN_ADMIN_ROLE_ID, EXTRA_ADMIN_ROLE_ID
+def is_admin(user: discord.Member) -> bool:
+    global MAIN_ADMIN_USER_ID, EXTRA_ADMIN_ROLE_ID
 
-    if not hasattr(user, "roles"):
+    if not isinstance(user, discord.Member):
         return False
 
-    role_ids = [r.id for r in user.roles]
-
-    # Ana admin rolü
-    if MAIN_ADMIN_ROLE_ID in role_ids:
+    # Ana admin kullanıcı ID'si
+    if MAIN_ADMIN_USER_ID != 0 and user.id == MAIN_ADMIN_USER_ID:
         return True
 
-    # Ek admin rolü
-    if EXTRA_ADMIN_ROLE_ID and EXTRA_ADMIN_ROLE_ID in role_ids:
+    # Ek admin rolü tanımlıysa ve kullanıcıda varsa
+    if EXTRA_ADMIN_ROLE_ID and any(r.id == EXTRA_ADMIN_ROLE_ID for r in user.roles):
         return True
 
     return False
@@ -61,10 +62,10 @@ async def yardım(ctx):
         color=0x4CAF50
     )
     embed.add_field(name="!listeolustur metin", value="Yeni liste oluşturur.", inline=False)
-    embed.add_field(name="!listegoster", value="Mevcut listeyi gösterir.", inline=False)
+    embed.add_field(name="!listegoster", value="Mevcut listeyi tekrar gönderir.", inline=False)
     embed.add_field(name="!listesifirla", value="Listeyi sıfırlar (Admin).", inline=False)
     embed.add_field(name="!benisil", value="Kendi ismini listeden siler.", inline=False)
-    embed.add_field(name="!adminekle @rol", value="Ek admin tanımlar (Ana admin).", inline=False)
+    embed.add_field(name="!adminekle @rol", value="Ek admin rolü tanımlar (Sadece ana admin).", inline=False)
     embed.add_field(name="Sayı yaz", value="Sayı yazınca ismini ilgili satıra ekler.", inline=False)
 
     await ctx.send(embed=embed)
@@ -212,14 +213,14 @@ async def benisil(ctx):
 
 
 # ----------------------------
-# ADMIN EKLE
+# ADMIN EKLE (ek admin rolü)
 # ----------------------------
 @bot.command()
 async def adminekle(ctx, rol: discord.Role):
     global EXTRA_ADMIN_ROLE_ID
 
-    # Sadece MAIN_ADMIN_ROLE_ID rolüne sahip olan kullanabilsin
-    if MAIN_ADMIN_ROLE_ID not in [r.id for r in ctx.author.roles]:
+    # Sadece ana admin (user id) kullanabilsin
+    if MAIN_ADMIN_USER_ID == 0 or ctx.author.id != MAIN_ADMIN_USER_ID:
         return await ctx.reply("❌ Bu komutu sadece ana admin kullanabilir.")
 
     EXTRA_ADMIN_ROLE_ID = rol.id
@@ -320,4 +321,3 @@ async def on_message(message):
 # BOTU BAŞLAT
 # ----------------------------
 bot.run(TOKEN)
-
