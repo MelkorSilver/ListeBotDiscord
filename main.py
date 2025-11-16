@@ -35,6 +35,31 @@ async def liste_olustur(ctx, *, liste):
 
     await ctx.reply("✅ Liste oluşturuldu! Artık kullanıcılar sayı yazabilir.")
 
+# -------------------------------------------------------
+#  MENTION SİLME KOMUTU
+# -------------------------------------------------------
+@bot.command()
+async def sil(ctx, sayi: int):
+    """Belirli bir satırdaki mention'u siler."""
+    global LIST_CHANNEL_ID, LIST_MESSAGE_ID
+
+    if LIST_CHANNEL_ID is None or LIST_MESSAGE_ID is None:
+        return await ctx.reply("❌ Önce liste oluşturmalısın.")
+
+    channel = bot.get_channel(LIST_CHANNEL_ID)
+    list_msg = await channel.fetch_message(LIST_MESSAGE_ID)
+
+    lines = list_msg.content.split("\n")
+
+    idx = next((i for i, l in enumerate(lines) if l.strip().startswith(f"{sayi})")), None)
+
+    if idx is None:
+        return await ctx.reply("❌ Bu numaraya ait satır yok.")
+
+    lines[idx] = re.sub(r"–\s*<@!?\d+>", "", lines[idx]).strip()
+
+    await list_msg.edit(content="\n".join(lines))
+    await ctx.reply(f"✅ {sayi}. satırdaki mention silindi!")
 
 # -----------------------------
 #  MESAJ EVENTİ (sayı kontrolü)
@@ -86,3 +111,4 @@ async def on_message(message):
 
 
 bot.run(TOKEN)
+
