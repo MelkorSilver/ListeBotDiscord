@@ -230,10 +230,13 @@ async def on_message(message):
     if idx is None:
         return
 
-    # Eski mention sil
-    list_lines[idx] = re.sub(r"–\s*<@!?\d+>", "", list_lines[idx]).strip()
+    # SLOT DOLU MU? (herhangi bir mention varsa)
+    if re.search(r"<@!?\d+>", list_lines[idx]):
+        await message.reply("❌ Bu numara zaten dolu, başka bir numara seç.")
+        return
 
-    # Yeni mention ekle
+    # Eski mention yoksa bile, güvenlik için temizleyip ekliyoruz
+    list_lines[idx] = re.sub(r"–\s*<@!?\d+>", "", list_lines[idx]).strip()
     list_lines[idx] = f"{list_lines[idx]} – <@{message.author.id}>"
 
     # Embed yeniden oluştur
