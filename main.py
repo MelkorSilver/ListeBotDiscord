@@ -121,9 +121,6 @@ async def listeolustur(ctx, *, liste):
     except Exception as e:
         print(f"Thread oluşturulamadı: {e}")
 
-    # Kullanıcıya bilgi mesajı
-    await ctx.reply("✅ Liste oluşturuldu! Kullanıcılar sayı yazabilir.", mention_author=False)
-
     # Komut mesajını sil
     try:
         await ctx.message.delete()
@@ -321,3 +318,4 @@ async def on_message(message):
 # BOTU BAŞLAT
 # ----------------------------
 bot.run(TOKEN)
+
