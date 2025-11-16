@@ -61,9 +61,9 @@ async def yardım(ctx):
         description="Aşağıdaki komutları kullanabilirsiniz:",
         color=0x4CAF50
     )
-    embed.add_field(name="!listeolustur metin", value="Yeni liste oluşturur.", inline=False)
-    embed.add_field(name="!listegoster", value="Mevcut listeyi tekrar gönderir.", inline=False)
-    embed.add_field(name="!listesifirla", value="Listeyi sıfırlar (Admin).", inline=False)
+    embed.add_field(name="!listeoluştur metin", value="Yeni liste oluşturur.", inline=False)
+    embed.add_field(name="!listegöster", value="Mevcut listeyi tekrar gönderir.", inline=False)
+    embed.add_field(name="!listesıfırla", value="Listeyi sıfırlar (Admin).", inline=False)
     embed.add_field(name="!benisil", value="Kendi ismini listeden siler.", inline=False)
     embed.add_field(name="!adminekle @rol", value="Ek admin rolü tanımlar (Sadece ana admin).", inline=False)
     embed.add_field(name="Sayı yaz", value="Sayı yazınca ismini ilgili satıra ekler.", inline=False)
@@ -72,14 +72,14 @@ async def yardım(ctx):
 
 
 # ----------------------------
-# LİSTE OLUŞTUR
+# LİSTE OLUŞTUR  -> !listeoluştur
 # ----------------------------
-@bot.command()
+@bot.command(name="listeoluştur")
 async def listeolustur(ctx, *, liste):
     """
     Metinden liste oluşturur, thread açar, komut mesajını siler.
     Örnek:
-    !listeolustur
+    !listeoluştur
     1) Tank
     2) Healer
     3) DPS
@@ -129,9 +129,9 @@ async def listeolustur(ctx, *, liste):
 
 
 # ----------------------------
-# LİSTE GÖSTER
+# LİSTE GÖSTER  -> !listegöster
 # ----------------------------
-@bot.command()
+@bot.command(name="listegöster")
 async def listegoster(ctx):
     if LIST_MESSAGE_ID is None:
         return await ctx.reply("❌ Henüz liste oluşturulmamış.")
@@ -152,9 +152,9 @@ async def listegoster(ctx):
 
 
 # ----------------------------
-# LİSTE SIFIRLA
+# LİSTE SIFIRLA  -> !listesıfırla
 # ----------------------------
-@bot.command()
+@bot.command(name="listesıfırla")
 async def listesifirla(ctx):
     global LIST_CHANNEL_ID, LIST_MESSAGE_ID
 
@@ -168,7 +168,7 @@ async def listesifirla(ctx):
 
 
 # ----------------------------
-# KENDİ MENTION SİLME
+# KENDİ MENTION SİLME -> !benisil
 # ----------------------------
 @bot.command()
 async def benisil(ctx):
@@ -210,7 +210,7 @@ async def benisil(ctx):
 
 
 # ----------------------------
-# ADMIN EKLE (ek admin rolü)
+# ADMIN EKLE (ek admin rolü) -> !adminekle @rol
 # ----------------------------
 @bot.command()
 async def adminekle(ctx, rol: discord.Role):
@@ -318,4 +318,3 @@ async def on_message(message):
 # BOTU BAŞLAT
 # ----------------------------
 bot.run(TOKEN)
-
