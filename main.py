@@ -94,12 +94,27 @@ async def listeolustur(ctx, *, liste):
         color=0x3498db
     )
 
+    # Liste mesajını gönder
     msg = await ctx.send(embed=embed)
 
     LIST_CHANNEL_ID = msg.channel.id
     LIST_MESSAGE_ID = msg.id
 
-    await ctx.reply("✅ Liste oluşturuldu! Kullanıcılar sayı yazabilir.")
+    # Otomatik thread aç
+    try:
+        thread_name = f"Liste – {ctx.author.display_name}"
+        await msg.create_thread(name=thread_name, auto_archive_duration=1440)  # 24 saat
+    except Exception as e:
+        print(f"Thread oluşturulamadı: {e}")
+
+    # Kullanıcıya bilgi mesajı
+    await ctx.reply("✅ Liste oluşturuldu! Kullanıcılar sayı yazabilir.", mention_author=False)
+
+    # Komut mesajını sil
+    try:
+        await ctx.message.delete()
+    except Exception as e:
+        print(f"Komut mesajı silinemedi: {e}")
 
 
 # ----------------------------
@@ -214,51 +229,4 @@ async def on_message(message):
             info_start = True
 
         if info_start:
-            info_lines.append(line)
-        else:
-            list_lines.append(line)
-
-    # Kullanıcının zaten listede bir yeri var mı?
-    user_tag = f"<@{message.author.id}>"
-    for line in list_lines:
-        if user_tag in line:
-            await message.reply("❌ Zaten listede bir sıran var. Önce `!benisil` yazıp temizle, sonra yeni numara al.")
-            return
-
-    # İlgili satırı bul (1, 1), 1-, 1. hepsi çalışsın)
-    idx = None
-    pattern = re.compile(rf"^{num}\b")  # satır başı: "1", "1)", "1-", "1." vb
-
-    for i, line in enumerate(list_lines):
-        if pattern.match(line.strip()):
-            idx = i
-            break
-
-    if idx is None:
-        return
-
-    # SLOT DOLU MU? (herhangi bir mention varsa)
-    if re.search(r"<@!?\d+>", list_lines[idx]):
-        await message.reply("❌ Bu numara zaten dolu, başka bir numara seç.")
-        return
-
-    # Güvenlik amaçlı, eski mention kalıntısı varsa temizle
-    list_lines[idx] = re.sub(r"–\s*<@!?\d+>", "", list_lines[idx]).strip()
-    list_lines[idx] = f"{list_lines[idx]} – <@{message.author.id}>"
-
-    # Embed yeniden oluştur
-    final_text = "\n".join(list_lines) + "\n" + "\n".join(info_lines)
-
-    new_embed = discord.Embed(
-        title="📋 Liste",
-        description=final_text,
-        color=0x3498db
-    )
-
-    await msg.edit(embed=new_embed)
-
-
-# ----------------------------
-# BOTU BAŞLAT
-# ----------------------------
-bot.run(TOKEN)
+            info_li_
