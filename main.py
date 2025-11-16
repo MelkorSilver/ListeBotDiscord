@@ -14,7 +14,7 @@ LIST_MESSAGE_ID = None
 # --------------------
 #   ADMIN ROLE SYSTEM
 # --------------------
-MAIN_ADMIN_ROLE_ID = 143123456789123456  # ← BUNU SANA GÖRE AYARLAYACAĞIM
+MAIN_ADMIN_ROLE_ID = 264037003258101767  # ← BUNU SANA GÖRE AYARLAYACAĞIM
 EXTRA_ADMIN_ROLE_ID = None               # sonradan değiştirilebilir
 
 
@@ -251,3 +251,4 @@ async def on_message(message):
 
 
 bot.run(TOKEN)
+
